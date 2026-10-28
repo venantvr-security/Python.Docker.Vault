@@ -1,0 +1,41 @@
+services:
+  mini-vault:
+    build:
+      context: .
+      secrets:
+        - build_pub_key
+    command: uvicorn vault:app --host 0.0.0.0 --port 8000
+    secrets:
+      - source: client_pub_key
+        target: /var/secrets/client_id.pub
+        mode: 0400
+    networks:
+      - zero-trust-net
+
+  client-app:
+    build:
+      context: .
+      secrets:
+        - build_pub_key
+    command: python client.py
+    depends_on:
+      - mini-vault
+    secrets:
+      - source: client_priv_key
+        target: /var/secrets/client_id.key
+        mode: 0400
+    networks:
+      - zero-trust-net
+
+secrets:
+  build_pub_key:
+    file: ./certs/client_id.pub
+  client_pub_key:
+    file: ./certs/client_id.pub
+  client_priv_key:
+    file: ./certs/client_id.key
+
+networks:
+  zero-trust-net:
+    driver: bridge
+    internal: true
