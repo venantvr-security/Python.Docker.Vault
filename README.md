@@ -34,6 +34,20 @@ sequenceDiagram
     C->>C: ECDH, HKDF, déchiffre en RAM
 ```
 
+## Cycle de vie des clés
+
+| Clé | Type | Où / quand générée | Où elle vit | Transmise ? |
+|---|---|---|---|---|
+| Identité Ed25519 | **Privée** | Une fois, avant lancement (`setup.sh` / `openssl genpkey`, ou `standalone_debug.py` à chaque exécution) | Client uniquement (`/var/secrets/client_id.key`) | Jamais |
+| Identité Ed25519 | **Publique** | En même temps que la privée | Vault (`/var/secrets/client_id.pub`) | Montée en secret Docker, pas via l'API |
+| X25519 éphémère client | **Privée** | À chaque appel de `fetch_secret()`, avant l'envoi | RAM du client, abandonnée en fin d'appel | Jamais |
+| X25519 éphémère client | **Publique** | En même temps que la privée | Envoyée au Vault (`ephemeral_pub`), incluse dans le payload signé | Oui |
+| X25519 éphémère Vault | **Privée** | À chaque requête de `get_secret()`, après les contrôles timestamp, nonce, signature et existence du secret | RAM du Vault, abandonnée en fin de requête | Jamais |
+| X25519 éphémère Vault | **Publique** | En même temps que la privée | Renvoyée au client (`vault_ephemeral_pub`) | Oui |
+| Clé symétrique (ChaCha20) | Secrète (dérivée) | Calculée par chaque côté : ECDH (sa privée éphémère + la publique de l'autre) puis HKDF | RAM des deux côtés | Jamais |
+
+Les clés éphémères n'existent qu'en RAM et ne sont jamais écrites sur disque. Si la clé privée d'identité fuit plus tard, les échanges passés restent indéchiffrables (forward secrecy).
+
 ## Utilisation
 
 - Tout-en-un : `./setup.sh` (génère les clés, test local, puis Docker BuildKit)
